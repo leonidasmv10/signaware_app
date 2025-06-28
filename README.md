@@ -1,12 +1,33 @@
-# React + Vite
+# Signaware
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Signaware es una aplicación especializada para conductores con discapacidad auditiva que utiliza inteligencia artificial para mejorar su seguridad al volante.
 
-Currently, two official plugins are available:
+## Características
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Detección de sonidos críticos**: Detecta sirenas, claxons y otros sonidos importantes
+- **Alertas visuales y táctiles**: Convierte sonidos en alertas accesibles
+- **Análisis visual del entorno**: IA que "escucha y mira" por el conductor
+- **Resúmenes diarios**: Informes personalizados con recomendaciones
+- **Mapa colaborativo**: Comparte alertas con otros conductores
+- **Asistente virtual**: Chatbot con IA para ayuda y soporte
 
-## Expanding the ESLint configuration
+## Tecnologías
 
-If you are developing a production application, we recommend using TypeScript and enable type-aware lint rules. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- React + Vite
+- Tailwind CSS
+- Google Gemini AI
+- Leaflet Maps
+- React Router
+
+## Desarrollo
+
+```bash
+npm install
+npm run dev
+```
+
+## Construcción
+
+```bash
+npm run build
+```
