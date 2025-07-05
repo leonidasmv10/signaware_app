@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
-import { Volume2, Send, Mic, MicOff, Menu, X, Plus, LogOut, User, Moon, Sun, Settings, MessageSquare, PanelLeftClose, PanelLeft, Play, Pause } from "lucide-react";
+import { Volume2, Send, Mic, MicOff, Menu, X, Plus, LogOut, User, Moon, Sun, Settings, MessageSquare, PanelLeftClose, PanelLeft, Play, Pause, Ear, EarOff, Loader2 } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useAudio } from "../context/AudioContext";
 import { useAuth } from "../context/AuthContext";
+import { geminiChat } from "../services/api";
 
 // Componente para el reproductor de audio
 const AudioPlayer = ({ audioId, soundType }) => {
@@ -119,7 +120,7 @@ export default function Chat() {
   const [messages, setMessages] = useState([
     {
       id: 1,
-      text: "¡Hola! Soy tu asistente de Signaware. Estoy aquí para ayudarte con cualquier consulta sobre seguridad vial, tecnología de conducción o asistencia auditiva. ¿En qué puedo ayudarte hoy?",
+      text: "¡Hola! Soy tu asistente de Signaware. ¿En qué puedo ayudarte hoy?",
       isBot: true,
       timestamp: new Date().toLocaleTimeString(),
     },
@@ -127,6 +128,7 @@ export default function Chat() {
   const [inputMessage, setInputMessage] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [darkMode, setDarkMode] = useState(true);
+  const [selectedModel, setSelectedModel] = useState("gemini");
   const [chatHistory] = useState([
     { id: 1, title: "Consulta sobre seguridad vial", date: "Hoy", preview: "¿Cuáles son las mejores prácticas..." },
     { id: 2, title: "Configuración de audio", date: "Ayer", preview: "¿Cómo ajustar la sensibilidad..." },
@@ -143,6 +145,8 @@ export default function Chat() {
     volume,
     detectionStatus: audioDetectionStatus,
     lastAgentResult,
+    isListeningEnabled,
+    toggleListeningMode,
   } = useAudio();
 
   // Efecto para mostrar resultados del agente en el chat
@@ -321,7 +325,7 @@ export default function Chat() {
     };
   };
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (inputMessage.trim()) {
       const newMessage = {
         id: messages.length + 1,
@@ -332,16 +336,41 @@ export default function Chat() {
       setMessages([...messages, newMessage]);
       setInputMessage("");
       
-      // Simular respuesta del bot (aquí puedes integrar con tu IA)
-      setTimeout(() => {
-        const botResponse = {
-          id: messages.length + 2,
-          text: "Gracias por tu mensaje. Como asistente de Signaware, estoy aquí para ayudarte con información sobre seguridad vial y asistencia auditiva. ¿Hay algo específico en lo que pueda ayudarte?",
+      if (!isListeningEnabled) {
+        // Mostrar mensaje temporal de loading
+        const loadingId = messages.length + 2;
+        setMessages(prev => [...prev, {
+          id: loadingId,
+          text: "Generando respuesta...",
           isBot: true,
+          isLoading: true,
           timestamp: new Date().toLocaleTimeString(),
-        };
-        setMessages(prev => [...prev, botResponse]);
-      }, 1000);
+        }]);
+        try {
+          const response = await geminiChat(inputMessage, selectedModel);
+          setMessages(prev => prev.map(m =>
+            m.id === loadingId
+              ? { ...m, text: response, isLoading: false }
+              : m
+          ));
+        } catch {
+          setMessages(prev => prev.map(m =>
+            m.isLoading
+              ? { ...m, text: "Ocurrió un error al consultar el chatbot IA.", isLoading: false }
+              : m
+          ));
+        }
+      } else {
+        setTimeout(() => {
+          const botResponse = {
+            id: messages.length + 2,
+            text: "Gracias por tu mensaje. Como asistente de Signaware, estoy aquí para ayudarte con información sobre seguridad vial y asistencia auditiva. ¿Hay algo específico en lo que pueda ayudarte?",
+            isBot: true,
+            timestamp: new Date().toLocaleTimeString(),
+          };
+          setMessages(prev => [...prev, botResponse]);
+        }, 1000);
+      }
     }
   };
 
@@ -583,6 +612,49 @@ export default function Chat() {
                 <span className="text-sm">Configuración</span>
               </button>
 
+              {/* Modo escucha - Diseño mejorado */}
+              <button
+                onClick={toggleListeningMode}
+                className={`group relative w-full flex items-center space-x-3 p-3 rounded-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] ${
+                  isListeningEnabled
+                    ? `${darkMode 
+                        ? 'bg-gradient-to-r from-emerald-600/20 to-green-600/20 border border-emerald-500/30 text-emerald-300 shadow-md' 
+                        : 'bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 text-emerald-700 shadow-md'
+                      }`
+                    : `${darkMode 
+                        ? 'hover:bg-gradient-to-r hover:from-slate-700/50 hover:to-gray-700/50 border border-transparent hover:border-slate-600/30' 
+                        : 'hover:bg-gradient-to-r hover:from-slate-50 hover:to-gray-50 border border-transparent hover:border-slate-200'
+                      }`
+                }`}
+              >
+                {/* Icono */}
+                <div className="relative z-10">
+                  {isListeningEnabled ? (
+                    <Ear className={`w-4 h-4 transition-all duration-300 group-hover:scale-110 ${
+                      darkMode ? 'text-emerald-300' : 'text-emerald-600'
+                    }`} />
+                  ) : (
+                    <EarOff className={`w-4 h-4 transition-all duration-300 group-hover:scale-110 ${
+                      darkMode ? 'text-gray-400' : 'text-gray-500'
+                    }`} />
+                  )}
+                </div>
+                {/* Texto */}
+                <span className={`relative z-10 text-sm font-medium transition-all duration-300 group-hover:tracking-wide ${
+                  isListeningEnabled
+                    ? darkMode ? 'text-emerald-300' : 'text-emerald-700'
+                    : darkMode ? 'text-gray-300' : 'text-gray-700'
+                }`}>
+                  {isListeningEnabled ? "Modo Escucha: Activo" : "Modo Escucha: Inactivo"}
+                </span>
+                {/* Indicador de estado simple */}
+                <div className={`relative z-10 ml-auto w-2 h-2 rounded-full transition-all duration-300 ${
+                  isListeningEnabled 
+                    ? `${darkMode ? 'bg-emerald-400' : 'bg-emerald-500'}` 
+                    : `${darkMode ? 'bg-gray-500' : 'bg-gray-400'}`
+                }`} />
+              </button>
+
               {/* Perfil del usuario */}
               <button className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
                 <User className="w-4 h-4" />
@@ -625,51 +697,130 @@ export default function Chat() {
               <h1 className={`text-lg sm:text-xl font-semibold truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>Signaware</h1>
             </div>
             
-            {/* Indicador de audio mejorado */}
-            <div className={`flex items-center space-x-3 px-4 py-2 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-blue-50'} border ${darkMode ? 'border-gray-600' : 'border-blue-200'}`}>
-              {/* Estado de grabación */}
-              <div className="flex items-center space-x-2">
-                <div
-                  className={`w-3 h-3 rounded-full ${
-                    isRecording
-                      ? "bg-red-500 animate-pulse"
-                      : isProcessing
-                      ? "bg-yellow-500 animate-pulse"
-                      : autoMode
-                      ? "bg-green-500"
-                      : "bg-gray-400"
-                  }`}
-                />
-                <span className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
+            {/* Indicador de audio mejorado - Diseño moderno */}
+            <div className={`group relative flex items-center space-x-4 px-5 py-3 rounded-2xl transition-all duration-300 ${
+              darkMode 
+                ? 'bg-gradient-to-r from-slate-800/80 to-gray-800/80 border border-slate-600/50 shadow-md' 
+                : 'bg-gradient-to-r from-blue-50/90 to-indigo-50/90 border border-blue-200/50 shadow-md'
+            }`}>
+              {/* Estado de grabación con animaciones */}
+              <div className="flex items-center space-x-3">
+                <div className="relative">
+                  <div
+                    className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                      isRecording
+                        ? "bg-red-500 shadow-lg shadow-red-500/50 animate-pulse"
+                        : isProcessing
+                        ? "bg-amber-500 shadow-lg shadow-amber-500/50 animate-pulse"
+                        : autoMode && isListeningEnabled
+                        ? "bg-emerald-500 shadow-lg shadow-emerald-500/50"
+                        : "bg-slate-400"
+                    }`}
+                  />
+                  {/* Efecto de pulso para estados activos */}
+                  {(isRecording || isProcessing || (autoMode && isListeningEnabled)) && (
+                    <div className={`absolute inset-0 w-3 h-3 rounded-full animate-ping opacity-30 ${
+                      isRecording ? 'bg-red-500' : isProcessing ? 'bg-amber-500' : 'bg-emerald-500'
+                    }`}></div>
+                  )}
+                </div>
+                <span className={`text-sm font-semibold transition-all duration-300 ${
+                  darkMode ? 'text-slate-200' : 'text-slate-700'
+                }`}>
                   {audioDetectionStatus}
                 </span>
               </div>
               
-              {/* Separador */}
-              <div className={`w-px h-4 ${darkMode ? 'bg-gray-600' : 'bg-blue-200'}`} />
+              {/* Separador elegante */}
+              <div className={`w-px h-6 rounded-full ${
+                darkMode ? 'bg-gradient-to-b from-slate-600/50 to-transparent' : 'bg-gradient-to-b from-blue-300/50 to-transparent'
+              }`} />
               
-              {/* Nivel de audio */}
-              <div className="flex items-center space-x-2">
-                <div className="flex items-center space-x-1">
-                  <Volume2 className={`w-4 h-4 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
-                  <span className={`text-sm font-semibold ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
-                    {Math.round(volume)}
-                  </span>
-                  <span className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>dB</span>
+              {/* Nivel de audio mejorado */}
+              <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2">
+                  <div className={`p-1.5 rounded-lg transition-all duration-300 ${
+                    darkMode ? 'bg-slate-700/50' : 'bg-blue-100/50'
+                  }`}>
+                    <Volume2 className={`w-4 h-4 transition-all duration-300 group-hover:scale-110 ${
+                      darkMode ? 'text-blue-400' : 'text-blue-600'
+                    }`} />
+                  </div>
+                  <div className="flex items-baseline space-x-1">
+                    <span className={`text-lg font-bold transition-all duration-300 ${
+                      darkMode ? 'text-blue-400' : 'text-blue-600'
+                    }`}>
+                      {Math.round(volume)}
+                    </span>
+                    <span className={`text-xs font-medium ${
+                      darkMode ? 'text-slate-400' : 'text-slate-500'
+                    }`}>dB</span>
+                  </div>
                 </div>
                 
-                {/* Barra de nivel visual */}
-                <div className={`w-16 h-2 rounded-full ${darkMode ? 'bg-gray-600' : 'bg-gray-200'} overflow-hidden`}>
+                {/* Barra de nivel visual mejorada */}
+                <div className={`relative w-20 h-3 rounded-full overflow-hidden ${
+                  darkMode ? 'bg-slate-700/50' : 'bg-slate-200/50'
+                } shadow-inner`}>
                   <div 
-                    className={`h-full rounded-full transition-all duration-300 ${
-                      volume > 80 ? 'bg-red-500' : 
-                      volume > 60 ? 'bg-yellow-500' : 
-                      volume > 40 ? 'bg-orange-400' : 
-                      'bg-green-500'
+                    className={`h-full rounded-full transition-all duration-500 ease-out ${
+                      volume > 80 ? 'bg-gradient-to-r from-red-500 to-red-600 shadow-lg shadow-red-500/50' : 
+                      volume > 60 ? 'bg-gradient-to-r from-amber-500 to-orange-500 shadow-lg shadow-amber-500/50' : 
+                      volume > 40 ? 'bg-gradient-to-r from-orange-400 to-yellow-500 shadow-lg shadow-orange-400/50' : 
+                      'bg-gradient-to-r from-emerald-400 to-green-500 shadow-lg shadow-emerald-400/50'
                     }`}
                     style={{ width: `${Math.min((volume / 100) * 100, 100)}%` }}
                   />
+                  {/* Efecto de brillo */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent rounded-full"></div>
                 </div>
+              </div>
+            </div>
+
+            {/* Botón para activar/desactivar modo escucha - Diseño mejorado */}
+            <div className="relative">
+              <button
+                onClick={toggleListeningMode}
+                className={`group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl transition-all duration-300 transform hover:scale-105 active:scale-95 ${
+                  isListeningEnabled
+                    ? `${darkMode 
+                        ? 'bg-gradient-to-r from-emerald-500 to-green-600 shadow-md hover:shadow-lg' 
+                        : 'bg-gradient-to-r from-emerald-400 to-green-500 shadow-md hover:shadow-lg'
+                      } text-white border border-emerald-400/30`
+                    : `${darkMode 
+                        ? 'bg-gradient-to-r from-slate-600 to-gray-700 shadow-md hover:shadow-lg' 
+                        : 'bg-gradient-to-r from-slate-400 to-gray-500 shadow-md hover:shadow-lg'
+                      } text-white border border-slate-400/30`
+                }`}
+                title={isListeningEnabled ? "Desactivar modo escucha" : "Activar modo escucha"}
+              >
+                {/* Icono */}
+                <div className="relative z-10">
+                  {isListeningEnabled ? (
+                    <Ear className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />
+                  ) : (
+                    <EarOff className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />
+                  )}
+                </div>
+                {/* Texto */}
+                <span className="relative z-10 text-sm font-semibold hidden sm:inline transition-all duration-300 group-hover:tracking-wide">
+                  {isListeningEnabled ? "Escucha Activa" : "Escucha Inactiva"}
+                </span>
+                {/* Indicador de estado simple */}
+                <div className={`relative z-10 w-2 h-2 rounded-full transition-all duration-300 ${
+                  isListeningEnabled 
+                    ? 'bg-white' 
+                    : 'bg-slate-300'
+                }`} />
+              </button>
+              {/* Tooltip mejorado */}
+              <div className={`absolute -bottom-8 left-1/2 transform -translate-x-1/2 px-2 py-1 rounded-md text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none ${
+                darkMode ? 'bg-gray-800 text-gray-200' : 'bg-gray-900 text-white'
+              }`}>
+                {isListeningEnabled ? "Desactivar detección de sonidos" : "Activar detección de sonidos"}
+                <div className={`absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 rotate-45 ${
+                  darkMode ? 'bg-gray-800' : 'bg-gray-900'
+                }`}></div>
               </div>
             </div>
           </div>
@@ -691,9 +842,15 @@ export default function Chat() {
                   )}
                   <div className="flex-1 min-w-0">
                     <div className="markdown-content">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {message.text}
-                      </ReactMarkdown>
+                      {message.isLoading ? (
+                        <span className="flex items-center gap-2 text-blue-500 animate-pulse">
+                          <Loader2 className="w-4 h-4 animate-spin" /> Generando respuesta...
+                        </span>
+                      ) : (
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {message.text}
+                        </ReactMarkdown>
+                      )}
                     </div>
                     
                     {/* Reproductor de audio si está disponible */}
@@ -727,6 +884,20 @@ export default function Chat() {
         {/* Input del chat */}
         <div className={`border-t p-3 sm:p-4 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
           <div className="max-w-4xl mx-auto">
+            {/* Selector de modelo IA */}
+            <div className="mb-2 flex items-center gap-2">
+              <label htmlFor="model-select" className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Modelo IA:</label>
+              <select
+                id="model-select"
+                value={selectedModel}
+                onChange={e => setSelectedModel(e.target.value)}
+                className={`rounded-lg px-2 py-1 text-xs border ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-white text-gray-800 border-gray-300'}`}
+              >
+                <option value="gemini">Gemini</option>
+                <option value="openai">OpenAI</option>
+                <option value="leonidasmv">leonidasmv</option>
+              </select>
+            </div>
             <div className={`flex items-end space-x-2 sm:space-x-3 border rounded-2xl p-2 sm:p-3 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-200 transition-all duration-200 ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'}`}>
               <div className="flex-1 min-w-0">
                 <textarea
@@ -747,14 +918,12 @@ export default function Chat() {
                 <Send className="w-4 h-4" />
               </button>
             </div>
-            <div className={`mt-2 text-xs text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-              Presiona Enter para enviar, Shift+Enter para nueva línea
-            </div>
+            <div className={`mt-2 text-xs text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Presiona Enter para enviar, Shift+Enter para nueva línea</div>
           </div>
         </div>
       </div>
 
-      {/* Estilos CSS personalizados para scrollbar */}
+      {/* Estilos CSS personalizados para scrollbar y animaciones */}
       <style jsx>{`
         .scrollbar-light::-webkit-scrollbar {
           width: 8px;

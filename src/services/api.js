@@ -46,3 +46,20 @@ export const authService = {
   },
 };
 
+export const geminiChat = async (message, model = 'gemini') => {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_URL}/agent/chat/gemini/`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ message, model }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || 'Error en la petición a Gemini');
+  }
+  return data.response;
+};
+

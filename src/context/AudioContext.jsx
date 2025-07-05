@@ -16,6 +16,7 @@ export function AudioProvider({ children }) {
   const [isDetecting, setIsDetecting] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
   const [lastAgentResult, setLastAgentResult] = useState(null);
+  const [isListeningEnabled, setIsListeningEnabled] = useState(true);
 
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
@@ -55,8 +56,10 @@ export function AudioProvider({ children }) {
 
       updateSoundIntensity();
       setIsInitialized(true);
-      setDetectionStatus("Monitoreando sonidos");
-      startAutoDetection();
+      setDetectionStatus(isListeningEnabled ? "Monitoreando sonidos" : "Modo escucha desactivado");
+      if (isListeningEnabled) {
+        startAutoDetection();
+      }
     } catch (err) {
       console.error("Error al inicializar el audio:", err);
       setDetectionStatus("Error: Permiso de micrófono denegado");
@@ -89,7 +92,7 @@ export function AudioProvider({ children }) {
   };
 
   const checkVolumeAndRecord = () => {
-    if (!analyserRef.current || !isDetecting || !autoMode || isRecordingRef.current) return;
+    if (!analyserRef.current || !isDetecting || !autoMode || isRecordingRef.current || !isListeningEnabled) return;
 
     const bufferLength = analyserRef.current.frequencyBinCount;
     const dataArray = new Uint8Array(bufferLength);
@@ -104,7 +107,7 @@ export function AudioProvider({ children }) {
   };
 
   const startRecording = async () => {
-    if (isRecording || isProcessing || !streamRef.current || !isDetecting || isRecordingRef.current) return;
+    if (isRecording || isProcessing || !streamRef.current || !isDetecting || isRecordingRef.current || !isListeningEnabled) return;
 
     try {
       isRecordingRef.current = true; // Marcar como grabando
@@ -222,7 +225,7 @@ export function AudioProvider({ children }) {
       isRecordingRef.current = false; // Resetear bandera para permitir nuevas grabaciones
       setIsProcessing(false);
       setIsDetecting(true);
-      setDetectionStatus("Monitoreando sonidos");
+      setDetectionStatus(isListeningEnabled ? "Monitoreando sonidos" : "Modo escucha desactivado");
     }
   };
 
@@ -232,13 +235,24 @@ export function AudioProvider({ children }) {
       console.log("Tamaño del blob:", audioBlob.size, "bytes");
       console.log("Tipo del blob:", audioBlob.type);
       
+      // Crear un nuevo blob con el Content-Type correcto si es necesario
+      let finalBlob = audioBlob;
+      if (!audioBlob.type || audioBlob.type === 'application/octet-stream') {
+        console.log("Forzando Content-Type a audio/wav");
+        finalBlob = new Blob([audioBlob], { type: 'audio/wav' });
+      }
+      
       const formData = new FormData();
-      formData.append("audio", audioBlob, "audio_event.wav");
+      formData.append("audio", finalBlob, "audio_event.wav");
 
       // Verificar que el FormData contiene el archivo
       console.log("FormData entries:");
       for (let [key, value] of formData.entries()) {
         console.log(key, value);
+        if (value instanceof Blob) {
+          console.log("  - Blob type:", value.type);
+          console.log("  - Blob size:", value.size);
+        }
       }
 
       const response = await fetch(`${API_URL}/agent/process-audio/`, {
@@ -297,6 +311,23 @@ export function AudioProvider({ children }) {
     }
   };
 
+  const toggleListeningMode = () => {
+    const newListeningState = !isListeningEnabled;
+    setIsListeningEnabled(newListeningState);
+    
+    if (newListeningState) {
+      // Si se está activando el modo escucha, reiniciar la detección automática si está en modo auto
+      setDetectionStatus("Monitoreando sonidos");
+      if (autoMode) {
+        startAutoDetection();
+      }
+    } else {
+      // Si se está desactivando, detener la detección automática
+      setDetectionStatus("Modo escucha desactivado");
+      stopAutoDetection();
+    }
+  };
+
   const value = {
     isRecording,
     isProcessing,
@@ -306,7 +337,9 @@ export function AudioProvider({ children }) {
     isDetecting,
     isInitialized,
     lastAgentResult,
+    isListeningEnabled,
     toggleAutoMode,
+    toggleListeningMode,
     startRecording: () => {
       if (!isRecording && !isProcessing) {
         startRecording();
