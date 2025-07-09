@@ -1,120 +1,12 @@
 import { useState, useRef, useEffect } from "react";
-import { Volume2, Send, Mic, MicOff, Menu, X, Plus, LogOut, User, Moon, Sun, Settings, MessageSquare, PanelLeftClose, PanelLeft, Play, Pause, Ear, EarOff, Loader2 } from "lucide-react";
+import { Send, PanelLeftClose, PanelLeft, Loader2, Ear } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useAudio } from "../context/AudioContext";
-import { useAuth } from "../context/AuthContext";
-import { geminiChat } from "../services/api";
-
-// Componente para el reproductor de audio
-const AudioPlayer = ({ audioId, soundType }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [audioUrl, setAudioUrl] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const audioRef = useRef(null);
-  const API_URL = import.meta.env.VITE_API_URL;
-
-  const loadAudio = async () => {
-    if (!audioId || audioUrl) return;
-    
-    setIsLoading(true);
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${API_URL}/agent/audio/${audioId}/`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        setAudioUrl(url);
-      } else {
-        console.error("Error al cargar audio:", response.status);
-      }
-    } catch (error) {
-      console.error("Error al cargar audio:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const togglePlay = () => {
-    if (!audioUrl) {
-      loadAudio();
-      return;
-    }
-
-    if (isPlaying) {
-      audioRef.current?.pause();
-    } else {
-      audioRef.current?.play();
-    }
-  };
-
-  const handleAudioEnded = () => {
-    setIsPlaying(false);
-  };
-
-  const handleAudioPlay = () => {
-    setIsPlaying(true);
-  };
-
-  const handleAudioPause = () => {
-    setIsPlaying(false);
-  };
-
-  useEffect(() => {
-    return () => {
-      if (audioUrl) {
-        URL.revokeObjectURL(audioUrl);
-      }
-    };
-  }, [audioUrl]);
-
-  return (
-    <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={togglePlay}
-            disabled={isLoading}
-            className="flex items-center justify-center w-10 h-10 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-full transition-colors"
-          >
-            {isLoading ? (
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : isPlaying ? (
-              <Pause className="w-4 h-4" />
-            ) : (
-              <Play className="w-4 h-4 ml-0.5" />
-            )}
-          </button>
-          <div>
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              {isLoading ? "Cargando audio..." : "Reproducir audio detectado"}
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Tipo: {soundType}
-            </p>
-          </div>
-        </div>
-        <Volume2 className="w-5 h-5 text-gray-400" />
-      </div>
-      
-      {audioUrl && (
-        <audio
-          ref={audioRef}
-          src={audioUrl}
-          onEnded={handleAudioEnded}
-          onPlay={handleAudioPlay}
-          onPause={handleAudioPause}
-          className="hidden"
-        />
-      )}
-    </div>
-  );
-};
+import { textGeneration } from "../services/api";
+import Sidebar from "./Sidebar";
+import AudioListener from "./AudioListener";
+import AudioPlayer from "./AudioPlayer";
 
 export default function Chat() {
   const [messages, setMessages] = useState([
@@ -129,31 +21,29 @@ export default function Chat() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [darkMode, setDarkMode] = useState(true);
   const [selectedModel, setSelectedModel] = useState("gemini");
-  const [chatHistory] = useState([
-    { id: 1, title: "Consulta sobre seguridad vial", date: "Hoy", preview: "¿Cuáles son las mejores prácticas..." },
-    { id: 2, title: "Configuración de audio", date: "Ayer", preview: "¿Cómo ajustar la sensibilidad..." },
-    { id: 3, title: "Primera conversación", date: "15/12/2024", preview: "¡Hola! Soy tu asistente..." },
-  ]);
   const messagesEndRef = useRef(null);
 
-  const { logout } = useAuth();
-
   const {
-    isRecording,
-    isProcessing,
-    autoMode,
-    volume,
-    detectionStatus: audioDetectionStatus,
     lastAgentResult,
     isListeningEnabled,
-    toggleListeningMode,
   } = useAudio();
 
   // Efecto para mostrar resultados del agente en el chat
   useEffect(() => {
     if (lastAgentResult) {
-      const agentMessage = createAgentMessage(lastAgentResult);
-      setMessages(prev => [...prev, agentMessage]);
+      // Solo crear mensaje si no es unknown y tiene una categoría relevante
+      const { sound_type } = lastAgentResult;
+      
+      if (sound_type && 
+          sound_type !== "Unknown" && 
+          sound_type !== "unknown" && 
+          sound_type !== "Silence" && 
+          sound_type !== "Quiet" &&
+          sound_type !== "Error") {
+        
+        const agentMessage = createAgentMessage(lastAgentResult);
+        setMessages(prev => [...prev, agentMessage]);
+      }
     }
   }, [lastAgentResult]);
 
@@ -199,119 +89,129 @@ export default function Chat() {
     "Birds": { icon: "🐦", description: "Aves", type: "info" },
     "Bird": { icon: "🐦", description: "Ave", type: "info" },
     "Dog": { icon: "🐕", description: "Perro", type: "info" },
-    "Bark": { icon: "🐕", description: "Ladrido", type: "info" },
     "Cat": { icon: "🐱", description: "Gato", type: "info" },
-    "Meow": { icon: "🐱", description: "Maullido", type: "info" },
-    
-    // Sonidos ambientales
-    "Noise": { icon: "🔊", description: "Ruido de Fondo", type: "info" },
-    "Background": { icon: "🔊", description: "Ruido Ambiental", type: "info" },
-    
-    // Sonidos de herramientas y máquinas
-    "Drill": { icon: "🔧", description: "Taladro", type: "info" },
-    "Hammer": { icon: "🔨", description: "Martillo", type: "info" },
-    "Saw": { icon: "🪚", description: "Sierra", type: "info" },
     
     // Sonidos de electrodomésticos
-    "Microwave": { icon: "📟", description: "Microondas", type: "info" },
+    "Appliances": { icon: "🔌", description: "Electrodomésticos", type: "info" },
     "Refrigerator": { icon: "❄️", description: "Refrigerador", type: "info" },
-    "Washing machine": { icon: "🧺", description: "Lavadora", type: "info" },
+    "Washing": { icon: "🧺", description: "Lavadora", type: "info" },
     
-    // Sonidos de cocina
-    "Cooking": { icon: "👨‍🍳", description: "Cocinar", type: "info" },
-    "Frying": { icon: "🍳", description: "Freír", type: "info" },
-    "Boiling": { icon: "♨️", description: "Hervir", type: "info" },
+    // Sonidos de conversación
+    "Conversation": { icon: "💬", description: "Conversación", type: "conversation" },
+    "Talk": { icon: "💬", description: "Conversación", type: "conversation" },
+    "Chat": { icon: "💬", description: "Conversación", type: "conversation" },
+    "Discussion": { icon: "💬", description: "Discusión", type: "conversation" },
     
-    // Sonidos de transporte público
-    "Bus": { icon: "🚌", description: "Autobús", type: "info" },
-    "Train": { icon: "🚆", description: "Tren", type: "info" },
-    "Subway": { icon: "🚇", description: "Metro", type: "info" },
+    // Sonidos de alerta
+    "Alarm": { icon: "🚨", description: "Alarma", type: "warning" },
+    "Alert": { icon: "⚠️", description: "Alerta", type: "warning" },
+    "Warning": { icon: "⚠️", description: "Advertencia", type: "warning" },
+    
+    // Sonidos de tráfico
+    "Traffic": { icon: "🚦", description: "Tráfico", type: "warning" },
+    "Brake": { icon: "🛑", description: "Freno", type: "warning" },
+    "Accident": { icon: "🚨", description: "Accidente", type: "warning" },
     
     // Sonidos de construcción
     "Construction": { icon: "🏗️", description: "Construcción", type: "info" },
-    "Jackhammer": { icon: "🔨", description: "Martillo Neumático", type: "info" },
+    "Drill": { icon: "🔨", description: "Taladro", type: "info" },
+    "Hammer": { icon: "🔨", description: "Martillo", type: "info" },
     
-    // Sonidos de emergencia
-    "Alarm": { icon: "🚨", description: "Alarma", type: "warning" },
-    "Fire alarm": { icon: "🔥", description: "Alarma de Incendio", type: "warning" },
-    "Smoke detector": { icon: "💨", description: "Detector de Humo", type: "warning" },
+    // Sonidos de naturaleza
+    "Nature": { icon: "🌿", description: "Naturaleza", type: "info" },
+    "Forest": { icon: "🌲", description: "Bosque", type: "info" },
+    "Ocean": { icon: "🌊", description: "Océano", type: "info" },
+    
+    // Sonidos de silencio (ignorar)
+    "Silence": { icon: "🔇", description: "Silencio", type: "info" },
+    "Quiet": { icon: "🔇", description: "Silencio", type: "info" },
+    "Background": { icon: "🔇", description: "Fondo", type: "info" },
   };
 
   const createAgentMessage = (result) => {
-    const { sound_type, confidence, transcription, is_conversation_detected, sound_detections, audio_id } = result;
+    const { sound_type, confidence, alert_category, transcription, is_conversation_detected, audio_id } = result;
     
-    let messageText = "";
-    let messageType = "info";
-
-    // Helper function to extract text from transcription
     const extractTranscriptionText = (transcription) => {
       if (!transcription) return "";
       
-      // If transcription is an array of objects (from Whisper)
-      if (Array.isArray(transcription)) {
-        return transcription.map(segment => segment.text).join(" ");
-      }
-      
-      // If transcription is already a string
-      if (typeof transcription === "string") {
+      if (typeof transcription === 'string') {
         return transcription;
       }
       
-      // If transcription is an object with text property
-      if (transcription && typeof transcription === "object" && transcription.text) {
-        return transcription.text;
+      if (Array.isArray(transcription)) {
+        return transcription.map(t => {
+          if (typeof t === 'string') return t;
+          if (typeof t === 'object' && t.text) return t.text;
+          return String(t);
+        }).join(' ');
       }
       
-      return "";
+      if (typeof transcription === 'object') {
+        if (transcription.text) return transcription.text;
+        if (transcription.transcript) return transcription.transcript;
+        if (transcription.content) return transcription.content;
+        // Si es un objeto con start, end, text, extraer solo el texto
+        if (transcription.start !== undefined && transcription.end !== undefined && transcription.text) {
+          return transcription.text;
+        }
+        // Como último recurso, convertir a string
+        try {
+          return JSON.stringify(transcription);
+        } catch {
+          return String(transcription);
+        }
+      }
+      
+      return String(transcription);
     };
 
-    const transcriptionText = extractTranscriptionText(transcription);
+    const soundInfo = soundTypeMapping[sound_type] || {
+      icon: "🔊",
+      description: sound_type || "Sonido desconocido",
+      type: "info"
+    };
 
-    if (is_conversation_detected && transcriptionText) {
-      // Es una conversación con transcripción
-      messageText = `## 🎤 Conversación Detectada\n\n> "${transcriptionText}"\n\n*Confianza: ${(confidence * 100).toFixed(1)}%*`;
+    let messageText = "";
+    let messageType = soundInfo.type;
+
+    if (is_conversation_detected) {
+      const transcriptText = extractTranscriptionText(transcription);
+      messageText = `🎯 **Conversación detectada**\n\n${soundInfo.icon} **Tipo de sonido:** ${soundInfo.description}\n📊 **Confianza:** ${Math.round(confidence * 100)}%\n\n💬 **Transcripción:**\n${transcriptText || "No se pudo transcribir el audio"}`;
       messageType = "conversation";
-    } else if (sound_type === "Speech") {
-      // Es habla pero sin transcripción
-      messageText = `## 🗣️ Habla Detectada\n\nSe detectó conversación pero no se pudo transcribir completamente.\n\n*Confianza: ${(confidence * 100).toFixed(1)}%*`;
+    } else if (sound_type === "Speech" || sound_type === "Conversation" || sound_type === "Talk") {
+      const transcriptText = extractTranscriptionText(transcription);
+      messageText = `🗣️ **Habla detectada**\n\n${soundInfo.icon} **Tipo:** ${soundInfo.description}\n📊 **Confianza:** ${Math.round(confidence * 100)}%\n\n💬 **Transcripción:**\n${transcriptText || "No se pudo transcribir el audio"}`;
       messageType = "speech";
-    } else if (sound_detections && sound_detections.length > 0) {
-      // Mostrar múltiples sonidos detectados
-      const primarySound = sound_detections[0];
-      const primaryMapping = soundTypeMapping[primarySound[0]] || { 
-        icon: "🔊", 
-        description: primarySound[0], 
-        type: "info" 
+    } else if (alert_category && alert_category !== 'unknown') {
+      // Mostrar mensaje según la categoría de alerta
+      const alertEmojis = {
+        'danger_alert': '🔴',
+        'attention_alert': '🟡',
+        'social_alert': '🟢',
+        'environment_alert': '🔵'
       };
       
-      messageText = `## ${primaryMapping.icon} ${primaryMapping.description} Detectado\n\n`;
+      const alertTitles = {
+        'danger_alert': '¡ALERTA DE PELIGRO!',
+        'attention_alert': '¡ATENCIÓN REQUERIDA!',
+        'social_alert': 'ACTIVIDAD SOCIAL DETECTADA',
+        'environment_alert': 'CAMBIO EN EL ENTORNO'
+      };
       
-      // Agregar información sobre otros sonidos detectados
-      if (sound_detections.length > 1) {
-        messageText += "### Otros sonidos detectados:\n\n";
-        for (let i = 1; i < sound_detections.length; i++) {
-          const [soundName, soundConfidence] = sound_detections[i];
-          const mapping = soundTypeMapping[soundName] || { 
-            icon: "🔊", 
-            description: soundName 
-          };
-          messageText += `- **${mapping.icon} ${mapping.description}**: ${(soundConfidence * 100).toFixed(1)}%\n`;
-        }
-        messageText += "\n";
-      }
+      const emoji = alertEmojis[alert_category] || '⚠️';
+      const title = alertTitles[alert_category] || 'SONIDO RELEVANTE';
       
-      messageText += `*Confianza principal: ${(confidence * 100).toFixed(1)}%*`;
-      messageType = primaryMapping.type;
+      // Agregar transcripción si está disponible
+      const transcriptText = extractTranscriptionText(transcription);
+      const transcriptionSection = transcriptText ? `\n\n💬 **Transcripción:**\n${transcriptText}` : '';
+      
+      messageText = `${emoji} **${title}**\n\n${soundInfo.icon} **Sonido:** ${soundInfo.description}\n📊 **Confianza:** ${Math.round(confidence * 100)}%\n\n🚨 **Recomendación:** Mantén la atención y verifica tu entorno.${transcriptionSection}`;
+      messageType = "warning";
+    } else if (soundInfo.type === "warning") {
+      messageText = `⚠️ **¡Alerta de seguridad!**\n\n${soundInfo.icon} **Sonido detectado:** ${soundInfo.description}\n📊 **Confianza:** ${Math.round(confidence * 100)}%\n\n🚨 **Recomendación:** Mantén la atención y verifica tu entorno.`;
+      messageType = "warning";
     } else {
-      // Fallback para sonidos no mapeados
-      const mapping = soundTypeMapping[sound_type] || { 
-        icon: "🔊", 
-        description: sound_type, 
-        type: "info" 
-      };
-      
-      messageText = `## ${mapping.icon} ${mapping.description} Detectado\n\nSe detectó **${sound_type.toLowerCase()}** en el entorno.\n\n*Confianza: ${(confidence * 100).toFixed(1)}%*`;
-      messageType = mapping.type;
+      messageText = `🔊 **Sonido detectado**\n\n${soundInfo.icon} **Tipo:** ${soundInfo.description}\n📊 **Confianza:** ${Math.round(confidence * 100)}%`;
     }
 
     return {
@@ -320,57 +220,61 @@ export default function Chat() {
       isBot: true,
       timestamp: new Date().toLocaleTimeString(),
       type: messageType,
-      agentResult: result,
-      audioId: audio_id
+      audioId: audio_id,
+      agentResult: result
     };
   };
 
   const handleSendMessage = async () => {
-    if (inputMessage.trim()) {
-      const newMessage = {
-        id: messages.length + 1,
-        text: inputMessage,
-        isBot: false,
+    if (!inputMessage.trim()) return;
+
+    const userMessage = {
+      id: Date.now(),
+      text: inputMessage,
+      isBot: false,
+      timestamp: new Date().toLocaleTimeString(),
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    setInputMessage("");
+
+    // Mensaje de carga
+    const loadingMessage = {
+      id: Date.now() + 1,
+      text: "",
+      isBot: true,
+      timestamp: new Date().toLocaleTimeString(),
+      isLoading: true,
+    };
+
+    setMessages(prev => [...prev, loadingMessage]);
+
+    try {
+      const response = await textGeneration(inputMessage, selectedModel);
+      
+      const botMessage = {
+        id: Date.now() + 2,
+        text: response,
+        isBot: true,
         timestamp: new Date().toLocaleTimeString(),
       };
-      setMessages([...messages, newMessage]);
-      setInputMessage("");
+
+      setMessages(prev => prev.map(msg => 
+        msg.isLoading ? botMessage : msg
+      ));
+    } catch (error) {
+      console.error("Error al enviar mensaje:", error);
       
-      if (!isListeningEnabled) {
-        // Mostrar mensaje temporal de loading
-        const loadingId = messages.length + 2;
-        setMessages(prev => [...prev, {
-          id: loadingId,
-          text: "Generando respuesta...",
-          isBot: true,
-          isLoading: true,
-          timestamp: new Date().toLocaleTimeString(),
-        }]);
-        try {
-          const response = await geminiChat(inputMessage, selectedModel);
-          setMessages(prev => prev.map(m =>
-            m.id === loadingId
-              ? { ...m, text: response, isLoading: false }
-              : m
-          ));
-        } catch {
-          setMessages(prev => prev.map(m =>
-            m.isLoading
-              ? { ...m, text: "Ocurrió un error al consultar el chatbot IA.", isLoading: false }
-              : m
-          ));
-        }
-      } else {
-        setTimeout(() => {
-          const botResponse = {
-            id: messages.length + 2,
-            text: "Gracias por tu mensaje. Como asistente de Signaware, estoy aquí para ayudarte con información sobre seguridad vial y asistencia auditiva. ¿Hay algo específico en lo que pueda ayudarte?",
-            isBot: true,
-            timestamp: new Date().toLocaleTimeString(),
-          };
-          setMessages(prev => [...prev, botResponse]);
-        }, 1000);
-      }
+      const errorMessage = {
+        id: Date.now() + 2,
+        text: "Lo siento, hubo un error al procesar tu mensaje. Por favor, intenta de nuevo.",
+        isBot: true,
+        timestamp: new Date().toLocaleTimeString(),
+      };
+
+      setMessages(prev => prev.map(msg => 
+        msg.isLoading ? errorMessage : msg
+      ));
     }
   };
 
@@ -388,26 +292,12 @@ export default function Chat() {
   const handleNewChat = () => {
     setMessages([
       {
-        id: 1,
-        text: "¡Hola! Soy tu asistente de Signaware. Estoy aquí para ayudarte con cualquier consulta sobre seguridad vial, tecnología de conducción o asistencia auditiva. ¿En qué puedo ayudarte hoy?",
+        id: Date.now(),
+        text: "¡Hola! Soy tu asistente de Signaware. ¿En qué puedo ayudarte hoy?",
         isBot: true,
         timestamp: new Date().toLocaleTimeString(),
       },
     ]);
-    setInputMessage("");
-  };
-
-  const handleLogout = async () => {
-    try {
-      await logout();
-      // El logout ya maneja la redirección automáticamente
-    } catch (error) {
-      console.error("Error al cerrar sesión:", error);
-    }
-  };
-
-  const toggleTheme = () => {
-    setDarkMode(!darkMode);
   };
 
   const toggleSidebar = () => {
@@ -429,7 +319,19 @@ export default function Chat() {
     if (message.type === "conversation") {
       return `${baseStyle} ${darkMode ? 'bg-green-800 border border-green-600 text-green-100' : 'bg-green-100 border border-green-300 text-green-800'}`;
     } else if (message.type === "warning") {
-      return `${baseStyle} ${darkMode ? 'bg-red-800 border border-red-600 text-red-100' : 'bg-red-100 border border-red-300 text-red-800'}`;
+      // Estilos especiales para alertas según la categoría
+      const alertCategory = message.agentResult?.alert_category;
+      if (alertCategory === 'danger_alert') {
+        return `${baseStyle} ${darkMode ? 'bg-red-900 border border-red-700 text-red-100' : 'bg-red-50 border border-red-300 text-red-800'}`;
+      } else if (alertCategory === 'attention_alert') {
+        return `${baseStyle} ${darkMode ? 'bg-yellow-900 border border-yellow-700 text-yellow-100' : 'bg-yellow-50 border border-yellow-300 text-yellow-800'}`;
+      } else if (alertCategory === 'social_alert') {
+        return `${baseStyle} ${darkMode ? 'bg-green-900 border border-green-700 text-green-100' : 'bg-green-50 border border-green-300 text-green-800'}`;
+      } else if (alertCategory === 'environment_alert') {
+        return `${baseStyle} ${darkMode ? 'bg-blue-900 border border-blue-700 text-blue-100' : 'bg-blue-50 border border-blue-300 text-blue-800'}`;
+      } else {
+        return `${baseStyle} ${darkMode ? 'bg-red-800 border border-red-600 text-red-100' : 'bg-red-100 border border-red-300 text-red-800'}`;
+      }
     } else if (message.type === "speech") {
       return `${baseStyle} ${darkMode ? 'bg-blue-800 border border-blue-600 text-blue-100' : 'bg-blue-100 border border-blue-300 text-blue-800'}`;
     } else {
@@ -539,148 +441,16 @@ export default function Chat() {
 
   return (
     <div className={`flex h-screen ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-50'}`}>
-      {/* Sidebar - Visible por defecto en desktop, oculto en móvil */}
-      <div className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} fixed lg:static inset-y-0 left-0 z-50 w-80 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-r transform transition-transform duration-300 ease-in-out ${!sidebarOpen ? 'lg:hidden' : ''}`}>
-        <div className="flex flex-col h-full">
-          {/* Header del sidebar */}
-          <div className={`p-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between`}>
-            <h2 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Signaware</h2>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className={`p-2 rounded-lg transition-colors lg:hidden ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Botón Nuevo Chat */}
-          <div className="p-4">
-            <button
-              onClick={handleNewChat}
-              className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Nuevo Chat</span>
-            </button>
-          </div>
-
-          {/* Historial de chats */}
-          <div className={`flex-1 overflow-y-auto px-4 ${darkMode ? 'scrollbar-dark' : 'scrollbar-light'}`}>
-            <div className="space-y-2">
-              {chatHistory.map((chat) => (
-                <button
-                  key={chat.id}
-                  className={`w-full text-left p-3 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
-                >
-                  <div className="flex items-center space-x-2">
-                    <MessageSquare className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>{chat.title}</p>
-                      <p className={`text-xs truncate ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{chat.preview}</p>
-                      <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{chat.date}</p>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Footer del sidebar - Perfil y opciones */}
-          <div className={`p-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-            <div className="space-y-2">
-              {/* Toggle de tema */}
-              <button
-                onClick={toggleTheme}
-                className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
-              >
-                {darkMode ? (
-                  <>
-                    <Sun className="w-4 h-4" />
-                    <span className="text-sm">Modo Claro</span>
-                  </>
-                ) : (
-                  <>
-                    <Moon className="w-4 h-4" />
-                    <span className="text-sm">Modo Oscuro</span>
-                  </>
-                )}
-              </button>
-
-              {/* Configuración */}
-              <button className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
-                <Settings className="w-4 h-4" />
-                <span className="text-sm">Configuración</span>
-              </button>
-
-              {/* Modo escucha - Diseño mejorado */}
-              <button
-                onClick={toggleListeningMode}
-                className={`group relative w-full flex items-center space-x-3 p-3 rounded-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] ${
-                  isListeningEnabled
-                    ? `${darkMode 
-                        ? 'bg-gradient-to-r from-emerald-600/20 to-green-600/20 border border-emerald-500/30 text-emerald-300 shadow-md' 
-                        : 'bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 text-emerald-700 shadow-md'
-                      }`
-                    : `${darkMode 
-                        ? 'hover:bg-gradient-to-r hover:from-slate-700/50 hover:to-gray-700/50 border border-transparent hover:border-slate-600/30' 
-                        : 'hover:bg-gradient-to-r hover:from-slate-50 hover:to-gray-50 border border-transparent hover:border-slate-200'
-                      }`
-                }`}
-              >
-                {/* Icono */}
-                <div className="relative z-10">
-                  {isListeningEnabled ? (
-                    <Ear className={`w-4 h-4 transition-all duration-300 group-hover:scale-110 ${
-                      darkMode ? 'text-emerald-300' : 'text-emerald-600'
-                    }`} />
-                  ) : (
-                    <EarOff className={`w-4 h-4 transition-all duration-300 group-hover:scale-110 ${
-                      darkMode ? 'text-gray-400' : 'text-gray-500'
-                    }`} />
-                  )}
-                </div>
-                {/* Texto */}
-                <span className={`relative z-10 text-sm font-medium transition-all duration-300 group-hover:tracking-wide ${
-                  isListeningEnabled
-                    ? darkMode ? 'text-emerald-300' : 'text-emerald-700'
-                    : darkMode ? 'text-gray-300' : 'text-gray-700'
-                }`}>
-                  {isListeningEnabled ? "Modo Escucha: Activo" : "Modo Escucha: Inactivo"}
-                </span>
-                {/* Indicador de estado simple */}
-                <div className={`relative z-10 ml-auto w-2 h-2 rounded-full transition-all duration-300 ${
-                  isListeningEnabled 
-                    ? `${darkMode ? 'bg-emerald-400' : 'bg-emerald-500'}` 
-                    : `${darkMode ? 'bg-gray-500' : 'bg-gray-400'}`
-                }`} />
-              </button>
-
-              {/* Perfil del usuario */}
-              <button className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
-                <User className="w-4 h-4" />
-                <span className="text-sm">Mi Perfil</span>
-              </button>
-
-              {/* Cerrar sesión */}
-              <button
-                onClick={handleLogout}
-                className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-colors ${darkMode ? 'hover:bg-red-900 text-red-400' : 'hover:bg-red-50 text-red-600'}`}
-              >
-                <LogOut className="w-4 h-4" />
-                <span className="text-sm">Cerrar Sesión</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Overlay para cerrar sidebar en móvil */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+      {/* Componente de alertas de sonidos */}
+      
+      {/* Sidebar */}
+      <Sidebar
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+        darkMode={darkMode}
+        setDarkMode={setDarkMode}
+        onNewChat={handleNewChat}
+      />
 
       {/* Contenido principal */}
       <div className="flex-1 flex flex-col min-w-0">
@@ -697,132 +467,8 @@ export default function Chat() {
               <h1 className={`text-lg sm:text-xl font-semibold truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>Signaware</h1>
             </div>
             
-            {/* Indicador de audio mejorado - Diseño moderno */}
-            <div className={`group relative flex items-center space-x-4 px-5 py-3 rounded-2xl transition-all duration-300 ${
-              darkMode 
-                ? 'bg-gradient-to-r from-slate-800/80 to-gray-800/80 border border-slate-600/50 shadow-md' 
-                : 'bg-gradient-to-r from-blue-50/90 to-indigo-50/90 border border-blue-200/50 shadow-md'
-            }`}>
-              {/* Estado de grabación con animaciones */}
-              <div className="flex items-center space-x-3">
-                <div className="relative">
-                  <div
-                    className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                      isRecording
-                        ? "bg-red-500 shadow-lg shadow-red-500/50 animate-pulse"
-                        : isProcessing
-                        ? "bg-amber-500 shadow-lg shadow-amber-500/50 animate-pulse"
-                        : autoMode && isListeningEnabled
-                        ? "bg-emerald-500 shadow-lg shadow-emerald-500/50"
-                        : "bg-slate-400"
-                    }`}
-                  />
-                  {/* Efecto de pulso para estados activos */}
-                  {(isRecording || isProcessing || (autoMode && isListeningEnabled)) && (
-                    <div className={`absolute inset-0 w-3 h-3 rounded-full animate-ping opacity-30 ${
-                      isRecording ? 'bg-red-500' : isProcessing ? 'bg-amber-500' : 'bg-emerald-500'
-                    }`}></div>
-                  )}
-                </div>
-                <span className={`text-sm font-semibold transition-all duration-300 ${
-                  darkMode ? 'text-slate-200' : 'text-slate-700'
-                }`}>
-                  {audioDetectionStatus}
-                </span>
-              </div>
-              
-              {/* Separador elegante */}
-              <div className={`w-px h-6 rounded-full ${
-                darkMode ? 'bg-gradient-to-b from-slate-600/50 to-transparent' : 'bg-gradient-to-b from-blue-300/50 to-transparent'
-              }`} />
-              
-              {/* Nivel de audio mejorado */}
-              <div className="flex items-center space-x-3">
-                <div className="flex items-center space-x-2">
-                  <div className={`p-1.5 rounded-lg transition-all duration-300 ${
-                    darkMode ? 'bg-slate-700/50' : 'bg-blue-100/50'
-                  }`}>
-                    <Volume2 className={`w-4 h-4 transition-all duration-300 group-hover:scale-110 ${
-                      darkMode ? 'text-blue-400' : 'text-blue-600'
-                    }`} />
-                  </div>
-                  <div className="flex items-baseline space-x-1">
-                    <span className={`text-lg font-bold transition-all duration-300 ${
-                      darkMode ? 'text-blue-400' : 'text-blue-600'
-                    }`}>
-                      {Math.round(volume)}
-                    </span>
-                    <span className={`text-xs font-medium ${
-                      darkMode ? 'text-slate-400' : 'text-slate-500'
-                    }`}>dB</span>
-                  </div>
-                </div>
-                
-                {/* Barra de nivel visual mejorada */}
-                <div className={`relative w-20 h-3 rounded-full overflow-hidden ${
-                  darkMode ? 'bg-slate-700/50' : 'bg-slate-200/50'
-                } shadow-inner`}>
-                  <div 
-                    className={`h-full rounded-full transition-all duration-500 ease-out ${
-                      volume > 80 ? 'bg-gradient-to-r from-red-500 to-red-600 shadow-lg shadow-red-500/50' : 
-                      volume > 60 ? 'bg-gradient-to-r from-amber-500 to-orange-500 shadow-lg shadow-amber-500/50' : 
-                      volume > 40 ? 'bg-gradient-to-r from-orange-400 to-yellow-500 shadow-lg shadow-orange-400/50' : 
-                      'bg-gradient-to-r from-emerald-400 to-green-500 shadow-lg shadow-emerald-400/50'
-                    }`}
-                    style={{ width: `${Math.min((volume / 100) * 100, 100)}%` }}
-                  />
-                  {/* Efecto de brillo */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent rounded-full"></div>
-                </div>
-              </div>
-            </div>
-
-            {/* Botón para activar/desactivar modo escucha - Diseño mejorado */}
-            <div className="relative">
-              <button
-                onClick={toggleListeningMode}
-                className={`group relative flex items-center space-x-2 px-4 py-2.5 rounded-xl transition-all duration-300 transform hover:scale-105 active:scale-95 ${
-                  isListeningEnabled
-                    ? `${darkMode 
-                        ? 'bg-gradient-to-r from-emerald-500 to-green-600 shadow-md hover:shadow-lg' 
-                        : 'bg-gradient-to-r from-emerald-400 to-green-500 shadow-md hover:shadow-lg'
-                      } text-white border border-emerald-400/30`
-                    : `${darkMode 
-                        ? 'bg-gradient-to-r from-slate-600 to-gray-700 shadow-md hover:shadow-lg' 
-                        : 'bg-gradient-to-r from-slate-400 to-gray-500 shadow-md hover:shadow-lg'
-                      } text-white border border-slate-400/30`
-                }`}
-                title={isListeningEnabled ? "Desactivar modo escucha" : "Activar modo escucha"}
-              >
-                {/* Icono */}
-                <div className="relative z-10">
-                  {isListeningEnabled ? (
-                    <Ear className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />
-                  ) : (
-                    <EarOff className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />
-                  )}
-                </div>
-                {/* Texto */}
-                <span className="relative z-10 text-sm font-semibold hidden sm:inline transition-all duration-300 group-hover:tracking-wide">
-                  {isListeningEnabled ? "Escucha Activa" : "Escucha Inactiva"}
-                </span>
-                {/* Indicador de estado simple */}
-                <div className={`relative z-10 w-2 h-2 rounded-full transition-all duration-300 ${
-                  isListeningEnabled 
-                    ? 'bg-white' 
-                    : 'bg-slate-300'
-                }`} />
-              </button>
-              {/* Tooltip mejorado */}
-              <div className={`absolute -bottom-8 left-1/2 transform -translate-x-1/2 px-2 py-1 rounded-md text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none ${
-                darkMode ? 'bg-gray-800 text-gray-200' : 'bg-gray-900 text-white'
-              }`}>
-                {isListeningEnabled ? "Desactivar detección de sonidos" : "Activar detección de sonidos"}
-                <div className={`absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 rotate-45 ${
-                  darkMode ? 'bg-gray-800' : 'bg-gray-900'
-                }`}></div>
-              </div>
-            </div>
+            {/* Componente AudioListener */}
+            <AudioListener />
           </div>
         </div>
 
@@ -882,45 +528,69 @@ export default function Chat() {
         </div>
 
         {/* Input del chat */}
-        <div className={`border-t p-3 sm:p-4 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-          <div className="max-w-4xl mx-auto">
-            {/* Selector de modelo IA */}
-            <div className="mb-2 flex items-center gap-2">
-              <label htmlFor="model-select" className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Modelo IA:</label>
-              <select
-                id="model-select"
-                value={selectedModel}
-                onChange={e => setSelectedModel(e.target.value)}
-                className={`rounded-lg px-2 py-1 text-xs border ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-white text-gray-800 border-gray-300'}`}
-              >
-                <option value="gemini">Gemini</option>
-                <option value="openai">OpenAI</option>
-                <option value="leonidasmv">leonidasmv</option>
-              </select>
-            </div>
-            <div className={`flex items-end space-x-2 sm:space-x-3 border rounded-2xl p-2 sm:p-3 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-200 transition-all duration-200 ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'}`}>
-              <div className="flex-1 min-w-0">
-                <textarea
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Escribe tu mensaje..."
-                  className={`w-full resize-none border-none outline-none bg-transparent placeholder-gray-500 text-sm leading-relaxed max-h-24 sm:max-h-32 ${darkMode ? 'text-white placeholder-gray-400' : 'text-gray-800'}`}
-                  rows={1}
-                  style={{ minHeight: '20px' }}
-                />
+        {!isListeningEnabled && (
+          <div className={`border-t p-3 sm:p-4 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+            <div className="max-w-4xl mx-auto">
+              {/* Selector de modelo IA */}
+              <div className="mb-2 flex items-center gap-2">
+                <label htmlFor="model-select" className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Modelo IA:</label>
+                <select
+                  id="model-select"
+                  value={selectedModel}
+                  onChange={e => setSelectedModel(e.target.value)}
+                  className={`rounded-lg px-2 py-1 text-xs border ${darkMode ? 'bg-gray-700 text-white border-gray-600' : 'bg-white text-gray-800 border-gray-300'}`}
+                >
+                  <option value="gemini">Gemini</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="leonidasmv">leonidasmv</option>
+                </select>
               </div>
-              <button
-                onClick={handleSendMessage}
-                disabled={!inputMessage.trim()}
-                className="p-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors duration-200 flex items-center justify-center flex-shrink-0"
-              >
-                <Send className="w-4 h-4" />
-              </button>
+              <div className={`flex items-end space-x-2 sm:space-x-3 border rounded-2xl p-2 sm:p-3 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-200 transition-all duration-200 ${darkMode ? 'bg-gray-700 border-gray-600' : 'bg-white border-gray-300'}`}>
+                <div className="flex-1 min-w-0">
+                  <textarea
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    placeholder="Escribe tu mensaje..."
+                    className={`w-full resize-none border-none outline-none bg-transparent placeholder-gray-500 text-sm leading-relaxed max-h-24 sm:max-h-32 ${darkMode ? 'text-white placeholder-gray-400' : 'text-gray-800'}`}
+                    rows={1}
+                    style={{ minHeight: '20px' }}
+                  />
+                </div>
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!inputMessage.trim()}
+                  className="p-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors duration-200 flex items-center justify-center flex-shrink-0"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </div>
+              <div className={`mt-2 text-xs text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Presiona Enter para enviar, Shift+Enter para nueva línea</div>
             </div>
-            <div className={`mt-2 text-xs text-center ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Presiona Enter para enviar, Shift+Enter para nueva línea</div>
           </div>
-        </div>
+        )}
+
+        {/* Modo escucha activo - Mensaje informativo */}
+        {isListeningEnabled && (
+          <div className={`border-t p-6 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+            <div className="max-w-4xl mx-auto text-center">
+              <div className={`inline-flex items-center space-x-3 px-4 py-3 rounded-xl ${darkMode ? 'bg-blue-900/20 border border-blue-700/30' : 'bg-blue-50 border border-blue-200'}`}>
+                <Ear className={`w-5 h-5 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`} />
+                <div>
+                  <p className={`text-sm font-medium ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                    Modo Escucha Activo
+                  </p>
+                  <p className={`text-xs ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+                    El sistema está monitoreando sonidos del entorno
+                  </p>
+                </div>
+              </div>
+              <p className={`mt-3 text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                Desactiva el modo escucha para usar el chat con IA
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Estilos CSS personalizados para scrollbar y animaciones */}

@@ -46,9 +46,9 @@ export const authService = {
   },
 };
 
-export const geminiChat = async (message, model = 'gemini') => {
+export const textGeneration = async (message, model = 'gemini') => {
   const token = localStorage.getItem('token');
-  const response = await fetch(`${API_URL}/agent/chat/gemini/`, {
+  const response = await fetch(`${API_URL}/agent/text_generation/`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

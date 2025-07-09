@@ -3,7 +3,7 @@ import RecordRTC from "recordrtc";
 
 const AudioContext = createContext();
 
-const UMBRAL = 40;
+const UMBRAL = 60;
 const DURACION_GRABACION = 3000;
 const API_URL = import.meta.env.VITE_API_URL;
 
@@ -186,11 +186,24 @@ export function AudioProvider({ children }) {
       const agentResult = await processWithAgent(blob);
       
       if (agentResult) {
-        const { sound_type, confidence, transcription, is_conversation_detected, audio_id } = agentResult;
+        const { sound_type, confidence, alert_category, transcription, is_conversation_detected, audio_id, sound_detections } = agentResult;
         
-        // Ignorar detecciones de silencio
+        // Ignorar detecciones de silencio, errores y tipos unknown
         if (sound_type === "Silence" || sound_type === "Quiet") {
           console.log("Silencio detectado, ignorando...");
+          return;
+        }
+        
+        // Manejar errores de análisis
+        if (sound_type === "Error") {
+          console.error("Error en el análisis de audio:", agentResult);
+          setDetectionStatus("Error: No se pudo analizar el audio");
+          return;
+        }
+        
+        // Ignorar tipos unknown para evitar mensajes innecesarios
+        if (sound_type === "Unknown" || sound_type === "unknown") {
+          console.log("Tipo de sonido unknown, ignorando...");
           return;
         }
         
@@ -199,10 +212,25 @@ export function AudioProvider({ children }) {
         console.log("Resultado del agente recibido:", {
           sound_type,
           confidence,
+          alert_category,
           is_conversation_detected,
           audio_id,
-          has_transcription: !!transcription
+          has_transcription: !!transcription,
+          sound_detections_count: sound_detections?.length || 0
         });
+        
+        // Mostrar alerta según la categoría
+        if (alert_category && alert_category !== "unknown") {
+          const alertMessages = {
+            'danger_alert': '🔴 ¡ALERTA DE PELIGRO!',
+            'attention_alert': '🟡 ¡ATENCIÓN REQUERIDA!',
+            'social_alert': '🟢 ACTIVIDAD SOCIAL DETECTADA',
+            'environment_alert': '🔵 CAMBIO EN EL ENTORNO'
+          };
+          
+          const alertMessage = alertMessages[alert_category] || '⚠️ SONIDO RELEVANTE DETECTADO';
+          console.log(alertMessage, `- ${sound_type} (${(confidence * 100).toFixed(1)}% confianza)`);
+        }
         
         // Crear descripción del sonido detectado
         // let description = "";
