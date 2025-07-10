@@ -129,7 +129,7 @@ export default function Chat() {
   };
 
   const createAgentMessage = (result) => {
-    const { sound_type, confidence, alert_category, transcription, is_conversation_detected, audio_id } = result;
+    const { sound_type, sound_type_label, confidence, alert_category, transcription, is_conversation_detected, audio_id } = result;
     
     const extractTranscriptionText = (transcription) => {
       if (!transcription) return "";
@@ -174,13 +174,16 @@ export default function Chat() {
     let messageText = "";
     let messageType = soundInfo.type;
 
+    // Usar el label en español si está disponible
+    const soundLabel = sound_type_label || soundInfo.description || sound_type || "Sonido desconocido";
+
     if (is_conversation_detected) {
       const transcriptText = extractTranscriptionText(transcription);
-      messageText = `🎯 **Conversación detectada**\n\n${soundInfo.icon} **Tipo de sonido:** ${soundInfo.description}\n📊 **Confianza:** ${Math.round(confidence * 100)}%\n\n💬 **Transcripción:**\n${transcriptText || "No se pudo transcribir el audio"}`;
+      messageText = `🎯 **Conversación detectada**\n\n${soundInfo.icon} **Tipo de sonido:** ${soundLabel}\n📊 **Confianza:** ${Math.round(confidence * 100)}%\n\n💬 **Transcripción:**\n${transcriptText || "No se pudo transcribir el audio"}`;
       messageType = "conversation";
     } else if (sound_type === "Speech" || sound_type === "Conversation" || sound_type === "Talk") {
       const transcriptText = extractTranscriptionText(transcription);
-      messageText = `🗣️ **Habla detectada**\n\n${soundInfo.icon} **Tipo:** ${soundInfo.description}\n📊 **Confianza:** ${Math.round(confidence * 100)}%\n\n💬 **Transcripción:**\n${transcriptText || "No se pudo transcribir el audio"}`;
+      messageText = `🗣️ **Habla detectada**\n\n${soundInfo.icon} **Tipo:** ${soundLabel}\n📊 **Confianza:** ${Math.round(confidence * 100)}%\n\n💬 **Transcripción:**\n${transcriptText || "No se pudo transcribir el audio"}`;
       messageType = "speech";
     } else if (alert_category && alert_category !== 'unknown') {
       // Mostrar mensaje según la categoría de alerta
@@ -205,13 +208,13 @@ export default function Chat() {
       const transcriptText = extractTranscriptionText(transcription);
       const transcriptionSection = transcriptText ? `\n\n💬 **Transcripción:**\n${transcriptText}` : '';
       
-      messageText = `${emoji} **${title}**\n\n${soundInfo.icon} **Sonido:** ${soundInfo.description}\n📊 **Confianza:** ${Math.round(confidence * 100)}%\n\n🚨 **Recomendación:** Mantén la atención y verifica tu entorno.${transcriptionSection}`;
+      messageText = `${emoji} **${title}**\n\n${soundInfo.icon} **Sonido:** ${soundLabel}\n📊 **Confianza:** ${Math.round(confidence * 100)}%\n\n🚨 **Recomendación:** Mantén la atención y verifica tu entorno.${transcriptionSection}`;
       messageType = "warning";
     } else if (soundInfo.type === "warning") {
-      messageText = `⚠️ **¡Alerta de seguridad!**\n\n${soundInfo.icon} **Sonido detectado:** ${soundInfo.description}\n📊 **Confianza:** ${Math.round(confidence * 100)}%\n\n🚨 **Recomendación:** Mantén la atención y verifica tu entorno.`;
+      messageText = `⚠️ **¡Alerta de seguridad!**\n\n${soundInfo.icon} **Sonido detectado:** ${soundLabel}\n📊 **Confianza:** ${Math.round(confidence * 100)}%\n\n🚨 **Recomendación:** Mantén la atención y verifica tu entorno.`;
       messageType = "warning";
     } else {
-      messageText = `🔊 **Sonido detectado**\n\n${soundInfo.icon} **Tipo:** ${soundInfo.description}\n📊 **Confianza:** ${Math.round(confidence * 100)}%`;
+      messageText = `🔊 **Sonido detectado**\n\n${soundInfo.icon} **Tipo:** ${soundLabel}\n📊 **Confianza:** ${Math.round(confidence * 100)}%`;
     }
 
     return {
@@ -503,7 +506,7 @@ export default function Chat() {
                     {message.audioId && (
                       <AudioPlayer 
                         audioId={message.audioId} 
-                        soundType={message.agentResult?.sound_type || "Unknown"} 
+                        soundType={message.agentResult?.sound_type_label || message.agentResult?.sound_type || "Desconocido"} 
                       />
                     )}
                     
