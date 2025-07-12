@@ -60,6 +60,8 @@ export const textGeneration = async (message, model = 'gemini') => {
   if (!response.ok) {
     throw new Error(data.error || 'Error en la petición a Gemini');
   }
-  return data.response;
+  return data;
 };
+
+
 
