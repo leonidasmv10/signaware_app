@@ -219,14 +219,19 @@ export default function Chat() {
     // Construir el mensaje según el tipo de sonido
     if (sound_type === "Conversation" || is_conversation_detected) {
       const transcriptText = extractTranscriptionText(transcription);
-      messageText = `🎙️ **Conversación Detectada**\n\n**Transcripción:** ${transcriptText}\n\n**Confianza:** ${confidencePercent}%`;
+      const transcriptionDisplay = transcriptText.trim() ? transcriptText : "No se pudo transcribir";
+      messageText = `🎙️ **Conversación Detectada**\n\n**Transcripción:** ${transcriptionDisplay}\n\n**Confianza:** ${confidencePercent}%`;
       messageType = "conversation";
     } else {
       messageText = `🔊 **${displayName}**\n\n**Tipo:** ${sound_type}\n**Confianza:** ${confidencePercent}%`;
       
       if (transcription) {
         const transcriptText = extractTranscriptionText(transcription);
-        messageText += `\n\n**Transcripción:** ${transcriptText}`;
+        if (transcriptText.trim()) {
+          messageText += `\n\n**Transcripción:** ${transcriptText}`;
+        } else {
+          messageText += `\n\n**Transcripción:** No se pudo transcribir`;
+        }
       }
     }
 
