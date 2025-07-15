@@ -13,10 +13,9 @@ export default function AudioPlayer({ audioId, soundType }) {
     
     setIsLoading(true);
     try {
-      const token = localStorage.getItem("token");
       const response = await fetch(`${API_URL}/agent/audio/${audioId}/`, {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
       });
 
@@ -24,6 +23,12 @@ export default function AudioPlayer({ audioId, soundType }) {
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         setAudioUrl(url);
+      } else if (response.status === 401) {
+        // Token caducado, redirigir al login
+        localStorage.removeItem("token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem('sound_detections');
+        window.location.href = '/login';
       } else {
         console.error("Error al cargar audio:", response.status);
       }
@@ -68,13 +73,17 @@ export default function AudioPlayer({ audioId, soundType }) {
   }, [audioUrl]);
 
   return (
-    <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border">
+    <div className="mt-3 p-3 bg-gray-50/50 dark:bg-gray-800/50 rounded-lg backdrop-blur-sm">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <button
             onClick={togglePlay}
             disabled={isLoading}
-            className="flex items-center justify-center w-10 h-10 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-full transition-colors"
+            className={`flex items-center justify-center w-10 h-10 rounded-full transition-all duration-200 ${
+              isLoading
+                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                : "bg-blue-500 hover:bg-blue-600 text-white shadow-lg hover:shadow-xl transform hover:scale-105"
+            }`}
           >
             {isLoading ? (
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -85,15 +94,15 @@ export default function AudioPlayer({ audioId, soundType }) {
             )}
           </button>
           <div>
-            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
               {isLoading ? "Cargando audio..." : "Reproducir audio detectado"}
             </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
+            <p className="text-xs text-white">
               Tipo: {soundType}
             </p>
           </div>
         </div>
-        <Volume2 className="w-5 h-5 text-gray-400" />
+        <Volume2 className="w-5 h-5 text-white" />
       </div>
       
       {audioUrl && (

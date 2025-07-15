@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { X, Plus, LogOut, User, Moon, Sun, Settings, MessageSquare, Ear, EarOff } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { X, LogOut, Moon, Sun, Ear, EarOff, Sparkles, Brain, Zap, GripVertical } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useAudio } from "../context/AudioContext";
 
@@ -8,16 +8,15 @@ export default function Sidebar({
   setSidebarOpen, 
   darkMode, 
   setDarkMode, 
-  onNewChat 
+  onNewChat,
+  selectedModel,
+  setSelectedModel
 }) {
   const { logout } = useAuth();
   const { isListeningEnabled, toggleListeningMode } = useAudio();
-  
-  const [chatHistory] = useState([
-    { id: 1, title: "Consulta sobre seguridad vial", date: "Hoy", preview: "¿Cuáles son las mejores prácticas..." },
-    { id: 2, title: "Configuración de audio", date: "Ayer", preview: "¿Cómo ajustar la sensibilidad..." },
-    { id: 3, title: "Primera conversación", date: "15/12/2024", preview: "¡Hola! Soy tu asistente..." },
-  ]);
+  const [sidebarWidth, setSidebarWidth] = useState(320); // 320px = w-80
+  const [isResizing, setIsResizing] = useState(false);
+  const sidebarRef = useRef(null);
 
   const handleLogout = async () => {
     try {
@@ -32,140 +31,220 @@ export default function Sidebar({
     setDarkMode(!darkMode);
   };
 
+  const handleModelSelect = (model) => {
+    setSelectedModel(model);
+  };
+
+  // Funciones para redimensionar el sidebar
+  const startResizing = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Start resizing');
+    setIsResizing(true);
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isResizing) return;
+    
+    const newWidth = e.clientX;
+    const minWidth = 240;
+    const maxWidth = 480;
+    
+    const clampedWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+    console.log('Resizing to:', clampedWidth);
+    setSidebarWidth(clampedWidth);
+  };
+
+  const stopResizing = () => {
+    setIsResizing(false);
+  };
+
+  // Event listeners
+  useEffect(() => {
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', stopResizing);
+    } else {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', stopResizing);
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', stopResizing);
+    };
+  }, [isResizing]);
+
   return (
     <>
       {/* Sidebar - Visible por defecto en desktop, oculto en móvil */}
-      <div className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} fixed lg:static inset-y-0 left-0 z-50 w-80 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border-r transform transition-transform duration-300 ease-in-out ${!sidebarOpen ? 'lg:hidden' : ''}`}>
+      <div 
+        ref={sidebarRef}
+        style={{ width: `${sidebarWidth}px` }}
+        className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} fixed lg:static inset-y-0 left-0 z-50 ${darkMode ? 'bg-gray-900' : 'bg-white'} border-r ${darkMode ? 'border-gray-700' : 'border-gray-200'} transform transition-transform duration-300 ease-in-out ${!sidebarOpen ? 'lg:hidden' : ''}`}
+      >
         <div className="flex flex-col h-full">
           {/* Header del sidebar */}
-          <div className={`p-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'} flex items-center justify-between`}>
-            <h2 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Signaware</h2>
-            <button
-              onClick={() => setSidebarOpen(false)}
-              className={`p-2 rounded-lg transition-colors lg:hidden ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Botón Nuevo Chat */}
-          <div className="p-4">
-            <button
-              onClick={onNewChat}
-              className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Nuevo Chat</span>
-            </button>
-          </div>
-
-          {/* Historial de chats */}
-          <div className={`flex-1 overflow-y-auto px-4 ${darkMode ? 'scrollbar-dark' : 'scrollbar-light'}`}>
-            <div className="space-y-2">
-              {chatHistory.map((chat) => (
-                <button
-                  key={chat.id}
-                  className={`w-full text-left p-3 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
-                >
-                  <div className="flex items-center space-x-2">
-                    <MessageSquare className={`w-4 h-4 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`} />
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium truncate ${darkMode ? 'text-white' : 'text-gray-800'}`}>{chat.title}</p>
-                      <p className={`text-xs truncate ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{chat.preview}</p>
-                      <p className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{chat.date}</p>
-                    </div>
-                  </div>
-                </button>
-              ))}
+          <div className={`px-4 py-3 border-b ${darkMode ? 'border-gray-700' : 'border-gray-200'} h-16 flex items-center`}>
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-blue-600 to-blue-700 flex items-center justify-center">
+                  <Sparkles className="w-5 h-5 text-white" />
+                </div>
+                <h2 className={`text-lg font-semibold ${darkMode ? 'text-white' : 'text-gray-800'}`}>Signaware</h2>
+              </div>
+              <button
+                onClick={() => setSidebarOpen(false)}
+                className={`p-2 rounded-lg transition-colors lg:hidden ${darkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100'}`}
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
           </div>
 
-          {/* Footer del sidebar - Perfil y opciones */}
-          <div className={`p-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-            <div className="space-y-2">
-              {/* Toggle de tema */}
+          {/* Sección principal */}
+          <div className="flex-1 overflow-y-auto">
+            {/* Modelos IA */}
+            <div className="p-4">
+              <div className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} mb-3`}>
+                MODELOS IA
+              </div>
+              
+              {/* Gemini */}
               <button
-                onClick={toggleTheme}
-                className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
-              >
-                {darkMode ? (
-                  <>
-                    <Sun className="w-4 h-4" />
-                    <span className="text-sm">Modo Claro</span>
-                  </>
-                ) : (
-                  <>
-                    <Moon className="w-4 h-4" />
-                    <span className="text-sm">Modo Oscuro</span>
-                  </>
-                )}
-              </button>
-
-              {/* Configuración */}
-              <button className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
-                <Settings className="w-4 h-4" />
-                <span className="text-sm">Configuración</span>
-              </button>
-
-              {/* Modo escucha - Diseño mejorado */}
-              <button
-                onClick={toggleListeningMode}
-                className={`group relative w-full flex items-center space-x-3 p-3 rounded-xl transition-all duration-300 transform hover:scale-[1.02] active:scale-[0.98] ${
-                  isListeningEnabled
+                onClick={() => handleModelSelect('gemini')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors mb-2 ${
+                  selectedModel === 'gemini'
                     ? `${darkMode 
-                        ? 'bg-gradient-to-r from-emerald-600/20 to-green-600/20 border border-emerald-500/30 text-emerald-300 shadow-md' 
-                        : 'bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 text-emerald-700 shadow-md'
+                        ? 'bg-blue-600/20 text-blue-300 border border-blue-500/30' 
+                        : 'bg-blue-50 text-blue-700 border border-blue-200'
                       }`
                     : `${darkMode 
-                        ? 'hover:bg-gradient-to-r hover:from-slate-700/50 hover:to-gray-700/50 border border-transparent hover:border-slate-600/30' 
-                        : 'hover:bg-gradient-to-r hover:from-slate-50 hover:to-gray-50 border border-transparent hover:border-slate-200'
+                        ? 'text-gray-300 hover:bg-gray-700' 
+                        : 'text-gray-700 hover:bg-gray-100'
                       }`
                 }`}
               >
-                {/* Icono */}
-                <div className="relative z-10">
-                  {isListeningEnabled ? (
-                    <Ear className={`w-4 h-4 transition-all duration-300 group-hover:scale-110 ${
-                      darkMode ? 'text-emerald-300' : 'text-emerald-600'
-                    }`} />
-                  ) : (
-                    <EarOff className={`w-4 h-4 transition-all duration-300 group-hover:scale-110 ${
-                      darkMode ? 'text-gray-400' : 'text-gray-500'
-                    }`} />
-                  )}
-                </div>
-                {/* Texto */}
-                <span className={`relative z-10 text-sm font-medium transition-all duration-300 group-hover:tracking-wide ${
-                  isListeningEnabled
-                    ? darkMode ? 'text-emerald-300' : 'text-emerald-700'
-                    : darkMode ? 'text-gray-300' : 'text-gray-700'
-                }`}>
-                  {isListeningEnabled ? "Modo Escucha: Activo" : "Modo Escucha: Inactivo"}
-                </span>
-                {/* Indicador de estado simple */}
-                <div className={`relative z-10 ml-auto w-2 h-2 rounded-full transition-all duration-300 ${
-                  isListeningEnabled 
-                    ? `${darkMode ? 'bg-emerald-400' : 'bg-emerald-500'}` 
-                    : `${darkMode ? 'bg-gray-500' : 'bg-gray-400'}`
-                }`} />
+                <Brain className="w-4 h-4" />
+                <span className="text-sm">Gemini</span>
               </button>
 
-              {/* Perfil del usuario */}
-              <button className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-colors ${darkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}>
-                <User className="w-4 h-4" />
-                <span className="text-sm">Mi Perfil</span>
-              </button>
-
-              {/* Cerrar sesión */}
+              {/* OpenAI */}
               <button
-                onClick={handleLogout}
-                className={`w-full flex items-center space-x-3 p-3 rounded-lg transition-colors ${darkMode ? 'hover:bg-red-900 text-red-400' : 'hover:bg-red-50 text-red-600'}`}
+                onClick={() => handleModelSelect('openai')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors mb-2 ${
+                  selectedModel === 'openai'
+                    ? `${darkMode 
+                        ? 'bg-green-600/20 text-green-300 border border-green-500/30' 
+                        : 'bg-green-50 text-green-700 border border-green-200'
+                      }`
+                    : `${darkMode 
+                        ? 'text-gray-300 hover:bg-gray-700' 
+                        : 'text-gray-700 hover:bg-gray-100'
+                      }`
+                }`}
               >
-                <LogOut className="w-4 h-4" />
-                <span className="text-sm">Cerrar Sesión</span>
+                <Zap className="w-4 h-4" />
+                <span className="text-sm">OpenAI</span>
+              </button>
+
+              {/* LeonidasMV */}
+              <button
+                onClick={() => handleModelSelect('leonidasmv')}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
+                  selectedModel === 'leonidasmv'
+                    ? `${darkMode 
+                        ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30' 
+                        : 'bg-purple-50 text-purple-700 border border-purple-200'
+                      }`
+                    : `${darkMode 
+                        ? 'text-gray-300 hover:bg-gray-700' 
+                        : 'text-gray-700 hover:bg-gray-100'
+                      }`
+                }`}
+              >
+                <Sparkles className="w-4 h-4" />
+                <span className="text-sm">LeonidasMV</span>
+              </button>
+            </div>
+
+            {/* Separador */}
+            <div className={`border-t mx-4 mb-4 ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}></div>
+
+            {/* Sección de configuraciones */}
+            <div className="px-4 space-y-2">
+              <div className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} mb-2`}>
+                CONFIGURACIÓN
+              </div>
+              
+              {/* Modo escucha */}
+              <button
+                onClick={toggleListeningMode}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
+                  isListeningEnabled
+                    ? `${darkMode 
+                        ? 'bg-emerald-600/20 text-emerald-300 border border-emerald-500/30' 
+                        : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                      }`
+                    : `${darkMode 
+                        ? 'text-gray-300 hover:bg-gray-700' 
+                        : 'text-gray-700 hover:bg-gray-100'
+                      }`
+                }`}
+              >
+                {isListeningEnabled ? (
+                  <Ear className="w-4 h-4" />
+                ) : (
+                  <EarOff className="w-4 h-4" />
+                )}
+                <span className="text-sm">
+                  {isListeningEnabled ? "Modo Escucha Activo" : "Modo Escucha"}
+                </span>
+              </button>
+
+              {/* Toggle de tema */}
+              <button
+                onClick={toggleTheme}
+                className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
+                  darkMode 
+                    ? 'text-gray-300 hover:bg-gray-700' 
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                {darkMode ? (
+                  <Sun className="w-4 h-4" />
+                ) : (
+                  <Moon className="w-4 h-4" />
+                )}
+                <span className="text-sm">
+                  {darkMode ? "Modo Claro" : "Modo Oscuro"}
+                </span>
               </button>
             </div>
           </div>
+
+          {/* Footer - Cerrar sesión */}
+          <div className={`p-4 border-t ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+            <button
+              onClick={handleLogout}
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-colors ${
+                darkMode 
+                  ? 'text-gray-300 hover:bg-gray-700 hover:text-red-400' 
+                  : 'text-gray-700 hover:bg-gray-100 hover:text-red-600'
+              }`}
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="text-sm">Cerrar Sesión</span>
+            </button>
+          </div>
+        </div>
+        
+        {/* Handle de redimensionamiento */}
+        <div
+          className={`absolute top-0 right-0 w-2 h-full cursor-col-resize ${darkMode ? 'hover:bg-blue-400/50' : 'hover:bg-blue-500/50'} transition-colors duration-200`}
+          onMouseDown={startResizing}
+        >
+          <div className={`absolute top-1/2 right-0 transform -translate-y-1/2 w-1 h-12 ${darkMode ? 'bg-gray-500' : 'bg-gray-400'} rounded-full`}></div>
         </div>
       </div>
 

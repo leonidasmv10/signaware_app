@@ -14,6 +14,7 @@ import Login from "./components/Login";
 import Register from "./components/Register";
 import RecoverPassword from "./components/RecoverPassword";
 import Chat from "./components/Chat";
+import TokenExpiredNotification from "./components/TokenExpiredNotification";
 
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -58,6 +59,7 @@ function App() {
   return (
     <AuthProvider>
       <Router>
+        <TokenExpiredNotification />
         <Routes>
           {/* Ruta principal protegida */}
           <Route

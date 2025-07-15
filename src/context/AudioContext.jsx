@@ -297,6 +297,13 @@ export function AudioProvider({ children }) {
         const result = await response.json();
         console.log("Resultado del agente:", result);
         return result;
+      } else if (response.status === 401) {
+        // Token caducado, redirigir al login
+        localStorage.removeItem("token");
+        localStorage.removeItem("refresh_token");
+        localStorage.removeItem('sound_detections');
+        window.location.href = '/login';
+        return null;
       } else {
         console.error("Error en la respuesta del agente:", response.status);
         const errorText = await response.text();

@@ -370,7 +370,7 @@ export default function Login() {
         {/* Logo y título */}
         <div className="mb-8 text-center">
           <h1 className="text-3xl font-bold text-gray-800 mb-2">Signaware</h1>
-          <p className="text-blue-600 font-medium">Agente Inteligente de Asistencia Auditiva</p>
+                          <p className="text-blue-600 font-medium">Agente que Escucha el Entorno</p>
         </div>
 
         {/* Formulario */}

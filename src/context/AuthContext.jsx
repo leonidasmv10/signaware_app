@@ -7,13 +7,41 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) {
-      // Aquí podrías validar el token o cargar información del usuario
-      setUser({ token });
+  // Función para validar si el token está caducado
+  const validateToken = async (token) => {
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/user/validate-token/`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      return response.ok;
+    } catch (error) {
+      console.error('Error validando token:', error);
+      return false;
     }
-    setLoading(false);
+  };
+
+  useEffect(() => {
+    const initializeAuth = async () => {
+      const token = localStorage.getItem("token");
+      if (token) {
+        // Validar el token antes de establecer el usuario
+        const isValid = await validateToken(token);
+        if (isValid) {
+          setUser({ token });
+        } else {
+          // Token inválido, limpiar localStorage
+          localStorage.removeItem("token");
+          localStorage.removeItem("refresh_token");
+          localStorage.removeItem('sound_detections');
+        }
+      }
+      setLoading(false);
+    };
+
+    initializeAuth();
   }, []);
 
   const login = async (username, password) => {
@@ -56,11 +84,28 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Función para manejar tokens caducados
+  const handleTokenExpired = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("refresh_token");
+    localStorage.removeItem('sound_detections');
+    setUser(null);
+    
+    // Disparar evento personalizado para notificación
+    window.dispatchEvent(new CustomEvent('tokenExpired'));
+    
+    // Redirigir al login después de un breve delay para mostrar la notificación
+    setTimeout(() => {
+      window.location.href = '/login';
+    }, 2000);
+  };
+
   const value = {
     user,
     loading,
     login,
     logout,
+    handleTokenExpired,
     isAuthenticated: !!user,
   };
 
